@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:servicenow="http://www.mulesoft.org/schema/mule/servicenow"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:tls="http://www.mulesoft.org/schema/mule/tls" xmlns:api-gateway="http://www.mulesoft.org/schema/mule/api-gateway"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd 
+http://www.mulesoft.org/schema/mule/api-gateway http://www.mulesoft.org/schema/mule/api-gateway/current/mule-api-gateway.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/servicenow http://www.mulesoft.org/schema/mule/servicenow/current/mule-servicenow.xsd">
+	<global-property doc:name="Global Property" doc:id="a09e57ff-0694-4218-8e29-0c1994ce6a36" name="env" value="dev" />
+	<http:listener-config name="application-submit-api-httpsListenerConfig">
+        <http:listener-connection host="0.0.0.0" port="${https.port}" protocol="HTTPS">
+            <tls:context>
+                <tls:key-store type="pkcs12" path="mule-server-dev.p12" alias="mule_server_dev" keyPassword="password" password="password" />
+            </tls:context>
+        </http:listener-connection>
+    </http:listener-config>
+	<configuration-properties doc:name="Configuration properties" doc:id="ee905f34-94b6-4276-9ac6-2ad17afcf613" file="config-${env}.properties" />
+	<os:object-store name="Token_Object_store" doc:name="Object store" doc:id="e2d2528a-931d-4b1e-90ae-7333a1ee1f12" />
+	<servicenow:config name="ServiceNow_Config" doc:name="ServiceNow Config" doc:id="a95368aa-81f6-42c6-a459-75d43c0b2e79" >
+		<servicenow:basic-connection username="${servicenow.username}" password="${servicenow.password}" serviceAddress="${servicenow.host}">
+			<reconnection >
+				<reconnect />
+			</reconnection>
+			<servicenow:transport >
+				<servicenow:basic-auth-http-message-dispatcher-provider username="${servicenow.username}" readTimeout="2" readTimeoutUnit="MINUTES" password="${servicenow.password}"/>
+			</servicenow:transport>
+		</servicenow:basic-connection>
+		<expiration-policy maxIdleTime="2" timeUnit="MINUTES" />
+	</servicenow:config>
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="94952736-e2d0-4091-a1fd-5b32c1667d0f" responseTimeout="120000" />
+</mule>

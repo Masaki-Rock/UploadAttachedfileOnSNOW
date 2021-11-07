@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:validation="http://www.mulesoft.org/schema/mule/validation"
+	xmlns:java="http://www.mulesoft.org/schema/mule/java"
+	xmlns:batch="http://www.mulesoft.org/schema/mule/batch"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns:servicenow="http://www.mulesoft.org/schema/mule/servicenow"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd 
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/servicenow http://www.mulesoft.org/schema/mule/servicenow/current/mule-servicenow.xsd
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd">
+	<validation:config name="Validation_Config" doc:name="Validation Config" doc:id="1d8ee47b-4548-48d3-92bd-347e5b6fbde7" />
+	<flow name="UpdateApplicationMainFlow" doc:id="b9ea14e1-c650-4ce0-af65-43e81200cc80" >
+		<logger level="INFO" doc:name="StartLogger" doc:id="61ce6c96-b96c-448b-8ee4-f30e384cebef" message='"The Main Flow process finished!!"' category="MainFlow Start"/>
+		<flow-ref doc:name="SetValiable" doc:id="5e4565de-314d-484b-8454-d8919c11adbe" name="SetValiableFlow"/>
+		<flow-ref doc:name="UpdateApplication" doc:id="ee9443da-e948-4928-ac76-9c9b3f33d26a" name="UdateApplicationFlow" target="sysId"/>
+		<flow-ref doc:name="DeleteAttachedFiles" doc:id="ab063199-a619-4c66-b922-8627708e6dc9" name="DeleteAttachedFilesFlow"/>
+		<choice doc:name="CheckExistAttachedFiles" doc:id="801a6de3-cc1e-4690-b021-200d16485d58" >
+			<when expression="payload.parts.*attachedfiles != null">
+				<flow-ref doc:name="UploadAttachedFiles" doc:id="3d9d5fa4-aaff-4eff-acc2-b0b5cf4d2c8b" name="UploadAttachedFilesFlow" />
+			</when>
+		</choice>
+		<ee:transform doc:name="EditResponse" doc:id="57421608-a1d7-4838-aece-dadf4d761071" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{ 
+  "message" : "Process successful.",
+  "sysId": vars.sysId
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="EndLogger" doc:id="9351d8e2-72fd-45bb-aec2-7fae4acedf08" message='"The Main Flow process finished!!"'/>
+		
+	</flow>
+	<sub-flow name="SetValiableFlow" doc:id="11554ffe-c8c7-4129-86ed-703fb7ff5ddf" >
+		<set-variable value="#[message.attributes.uriParams.sys_id]" doc:name="SetSysID" doc:id="739923e3-08f5-4880-9015-ba7276dea361" variableName="sysId"/>
+		<set-variable value="#[%dw 2.0
+output application/dw
+---
+message.payload.parts.application.content]" doc:name="SetApplication" doc:id="0183b616-276b-4a5d-a4bb-e33ed9ad42c7" variableName="application"/>
+	</sub-flow>
+	<sub-flow name="UdateApplicationFlow" doc:id="4bcaafed-9f58-495b-b96e-499947c15ae1" >
+		<servicenow:invoke doc:name="GetApplication" doc:id="448150fe-5908-4a1e-9f0f-42e86937d661" config-ref="ServiceNow_Config" service="incident" operation="get" showReferenceValues="ALL" target="selectdata" targetValue="#[payload.body.getResponse]">
+			<servicenow:message>
+				<servicenow:body><![CDATA[#[%dw 2.0
+output application/xml
+ns ns0 http://www.service-now.com/incident
+---
+{
+	ns0#get: {
+		ns0#sys_id: vars.sysId,
+	}
+}]]]></servicenow:body>
+			</servicenow:message>
+		</servicenow:invoke>
+		<logger level="INFO" doc:name="GetApplicationLogger" doc:id="d6919cf6-15c4-4f10-8ab3-9324f27bbc6c" message="#[vars.selectdata]" category="Get Application Result."/>
+		<choice doc:name="CheckExistApplication" doc:id="864ab158-6341-41ca-a62e-88f09483aa38" >
+			<when expression="#[vars.selectdata == null]">
+				<servicenow:invoke doc:name="InsertApplication" doc:id="ecba8ceb-686e-426d-8d6f-0b926129a911" config-ref="ServiceNow_Config" service="incident" operation="insert" showReferenceValues="ALL" targetValue="#[payload.body.insertResponse]" target="updatedata">
+					<servicenow:message >
+						<servicenow:body ><![CDATA[#[%dw 2.0
+output application/xml
+ns ns0 http://www.service-now.com/incident
+---
+{
+    ns0#insert: {
+		ns0#short_description: vars.application.subject,
+		ns0#caller_id: vars.application.callerId,
+		ns0#state: vars.application.status,
+		ns0#description: vars.application.description
+    }
+}]]]></servicenow:body>
+					</servicenow:message>
+				</servicenow:invoke>
+			</when>
+			<otherwise>
+				<servicenow:invoke doc:name="UpdateApplication" doc:id="40128a98-8dca-4764-aad0-f2d707516ad4" config-ref="ServiceNow_Config" service="incident" operation="update" showReferenceValues="ALL" targetValue="#[payload.body.updateResponse]" target="updatedata">
+					<servicenow:message >
+						<servicenow:body ><![CDATA[#[%dw 2.0
+output application/xml
+ns ns0 http://www.service-now.com/incident
+---
+	ns0#update: {
+		ns0#sys_id: vars.sysId,
+		ns0#short_description: vars.application.subject,
+		ns0#caller_id: vars.application.callerId,
+		ns0#state: vars.application.status,
+		ns0#description: vars.application.description
+	}]]]></servicenow:body>
+					</servicenow:message>
+				</servicenow:invoke>
+			</otherwise>
+		</choice>
+		<logger level="INFO" doc:name="UpdateDataLogger" doc:id="246e519a-b659-4653-994c-4b98acc705f5" message="#[%dw 2.0
+output application/dw
+---
+vars.updatedata]" category="UpdateResult"/>
+		<validation:is-true doc:name="CheckUpdateResult" doc:id="afb2154c-12d7-469d-9226-43c65e7241e6" config-ref="Validation_Config" expression="#[vars.updatedata.sys_id != null]" message="Update Application data failed."/>
+		<ee:transform doc:name="Transform Message" doc:id="6fa543f5-b72d-47ee-9625-76052357a3ad" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+vars.updatedata.sys_id]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="DeleteAttachedFilesFlow" doc:id="4b049013-7a92-45da-b89f-ad1d5eab977f" >
+		<servicenow:invoke doc:name="FindAttachedFiles" doc:id="a5061803-386e-4a2d-924a-2e3aae52da54" config-ref="ServiceNow_Config" service="sys_attachment" operation="getRecords" showReferenceValues="ALL" target="selectdata" targetValue="#[payload.body.getRecordsResponse]">
+			<servicenow:message>
+				<servicenow:body><![CDATA[#[%dw 2.0
+output application/xml
+ns ns0 http://www.service-now.com/sys_attachment
+---
+{
+	ns0#getRecords: {
+		ns0#table_sys_id: vars.sysId,
+	}
+}]]]></servicenow:body>
+			</servicenow:message>
+		</servicenow:invoke>
+		<logger level="INFO" doc:name="FindAttachedFilesLogger" doc:id="ec3bda3f-8ae0-46f3-9e5a-c1d348aa9f71" message="#[%dw 2.0
+output application/dw
+---
+vars.selectdata]" category="Delete File Result" />
+		<choice doc:name="CheckExistAttachedFiles" doc:id="fba1f854-a08c-4517-9471-bb7ffcceab59">
+			<when expression="#[vars.selectdata != null]">
+				<servicenow:invoke doc:name="DeleteAttachedFiles" doc:id="4412f043-d2d7-4930-b69f-8e201f284c23" config-ref="ServiceNow_Config" service="sys_attachment" operation="deleteMultiple" showReferenceValues="ALL" target="updatedata" targetValue="#[payload.body.deleteMultipleResponse]">
+					<servicenow:message>
+						<servicenow:body><![CDATA[#[%dw 2.0
+output application/xml
+ns ns0 http://www.service-now.com/sys_attachment
+---
+{
+	ns0#deleteMultiple: {
+		ns0#table_sys_id: vars.sysId,
+	}
+}]]]></servicenow:body>
+					</servicenow:message>
+				</servicenow:invoke>
+				<logger level="INFO" doc:name="DeleteDataLogger" doc:id="cfaf8b0d-5b7a-474b-8ae3-9a5dcac759ee" message="#[%dw 2.0
+output application/dw
+---
+vars.updatedata]" category="Delete File Result" />
+				<validation:is-true doc:name="CheckDeleteResult" doc:id="b4edf31f-4b7d-485d-9849-634c8fce2cc5" config-ref="Validation_Config" expression="#[vars.updatedata != null]" message="Delete Files failed." />
+			</when>
+		</choice>
+	</sub-flow>
+	<sub-flow name="UploadAttachedFilesFlow" doc:id="b024759b-fbe4-473e-a745-a97cc6e0c70b" >
+		<foreach doc:name="For Each AttachedFiles" doc:id="a8a7052a-6b71-4b8f-b7a3-6154088476cf" collection="#[message.payload.parts.*attachedfiles]">
+			<set-variable value='#[%dw 2.0
+output application/dw
+---
+payload.headers."Content-Disposition".filename as String]' doc:name="SetFilename" doc:id="e56055e9-746a-497d-9468-795f866d7b9c" variableName="name"/>
+			<ee:transform doc:name="Transform Message" doc:id="3a452960-ff02-47cb-9f0f-797602f30c67" >
+				<ee:message >
+					<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+import fromBase64 from dw::core::Binaries
+---
+fromBase64(payload.content)]]></ee:set-payload>
+				</ee:message>
+			</ee:transform>
+			<logger level="INFO" doc:name="Prechek Attached File Logger" doc:id="9028d1e1-d105-4849-96f8-8963598e486c" message='#[%dw 2.0
+output application/dw
+---
+{ 
+  "name": vars.name as String,
+  "source": "incident:" ++ vars.sysId as String
+}]' category="Precheck Attached File."/>
+			<servicenow:invoke doc:name="UploadAttachedFile" doc:id="f07e3122-d4ec-4d0e-a9f0-31866becc813" config-ref="ServiceNow_Config" service="ecc_queue" operation="insert" target="updatedata" targetValue="#[payload.body.insertResponse]">
+			<reconnect />
+				<servicenow:message>
+                <servicenow:body><![CDATA[#[%dw 2.0
+output application/xml
+import toBase64 from dw::core::Binaries
+ns ns0 http://www.service-now.com/ecc_queue
+---
+{
+  ns0#insert: {
+	agent: "AttachmentCreator",
+	topic: "AttachmentCreator",
+	name: vars.name as String,
+	source: "incident:" ++ vars.sysId as String,
+	payload: toBase64(payload)
+  }
+}]]]></servicenow:body>
+            </servicenow:message>
+		</servicenow:invoke>
+			<logger level="INFO" doc:name="UploadFileResultLogger" doc:id="77534e1c-eb8c-43ad-9e94-51dadb2fb2e7" message="#[%dw 2.0
+output application/dw
+---
+vars.updatedata]" category="Upload File Result."/>
+			<validation:is-true doc:name="CheckUploadResult" doc:id="bddbd158-a324-4cf1-9bd0-1e07da43064d" expression="#[ vars.updatedata != null ]" message="Upload Files failed."/>
+		</foreach>
+	</sub-flow>
+</mule>
