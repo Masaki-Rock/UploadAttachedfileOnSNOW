@@ -1,0 +1,87 @@
+public class Mule_ApplicationSender {
+  
+    private static String cId = '5005h00000Bl8F5AAJ';
+    private static String boundaryStr = '--202105151529';
+    private static String endboundaryStr = '--' + boundaryStr +'--';
+
+    @future (callout=true)
+    public static void send() {
+
+        Case cobj = getApplication(cId);
+        List<ContentVersion> llist = findContentVersion(cobj); 
+        String body = makeApplicationBody(cobj) + makeAttachedFilesBody(llist) + endboundaryStr;
+        
+        HttpRequest req = new HttpRequest();
+        req.setTimeout(120000);
+        req.setEndpoint('callout:mule_api/api/submit/1234');
+        req.setMethod('POST');
+        req.setHeader('X-Correlation-ID', getUUID());
+        req.setHeader('jwt','{!$Credential.AuthorizationHeaderValue}');
+        req.setHeader('Cache-Control', 'no-cache');
+        req.setHeader('Content-Type', 'multipart/form-data; boundary=' + boundaryStr);
+        req.setHeader('Content-Length', String.valueOf(body.length()));
+        req.setBody(body);
+        System.debug(body);
+        
+        Http http = new Http();
+        HTTPResponse res = http.send(req);
+        System.debug(res.getStatus());
+        System.debug(res.getStatusCode());
+    }
+
+    private static Case getApplication(String cId) {
+
+        Case cobj = [SELECT Id,Subject,Status,Origin,Type,Reason,Description FROM Case WHERE Id = :cId];
+        return cobj;
+    }
+
+    private static List<ContentVersion> findContentVersion(Case cobj) {
+
+        List<ContentDocumentLink> llist = [SELECT ContentDocumentId, ContentDocument.title FROM ContentDocumentLink WHERE LinkedEntityId = :cobj.Id];
+        List<String> dIdlist = new List<String>();
+        for (ContentDocumentLink lobj : llist) {
+            dIdlist.add(lobj.ContentDocumentId);
+        }
+        String dIds = '\'' + String.join(dIdlist,'\',\'') + '\'';
+        String q= 'SELECT Id,Title,VersionData,FileType FROM ContentVersion WHERE ContentDocumentId IN (' + dIds + ')';
+        List<ContentVersion> vlist = Database.query(q);
+        System.debug(vlist);
+        return vlist;
+    }
+
+    private static String makeApplicationBody(Case cobj) {
+
+        String body = '--' + boundaryStr + '\r\n';
+        body += 'Content-Disposition: form-data; name="application"\r\n';
+        body += 'Content-Type: application/json\r\n\r\n';
+        body += '{ "subject": "' + cobj.subject + '","status": "' + cobj.status + '","origin": "' + cobj.origin + '","type": "' + cobj.type + '","reason": "' + cobj.reason + '","description": "' + cobj.description + '" }\r\n';
+
+        return body;
+    }
+
+    private static String makeAttachedFilesBody(List<ContentVersion> vlist) {
+        String body = '';
+        for(ContentVersion vobj : vlist){
+            body += makeAttachedFileBody(vobj);
+        }
+        return body;
+    }
+    private static String makeAttachedFileBody(ContentVersion vobj) {
+
+        String content = EncodingUtil.base64Encode(vobj.VersionData);
+        String body = '--' + boundaryStr + '\r\n';
+        body += 'Content-Disposition: form-data; name="attachedfiles"; filename="' + EncodingUtil.urlEncode(vobj.Title,'UTF-8') + '.' +vobj.FileType + '";\r\n';
+        body += 'Content-Type: application/octet-stream\r\n\r\n';
+        body += content;
+        body += '\r\n';
+
+        return body;
+    }
+                                                                                                                                       
+    public static String getUUID() {
+        Blob b = Crypto.GenerateAESKey(128);
+        String h = EncodingUtil.ConvertTohex(b);
+        String uuid = h.SubString(0,8)+ '-' + h.SubString(8,12) + '-' + h.SubString(12,16) + '-' + h.SubString(16,20) + '-' + h.substring(20);
+        return uuid;
+    }
+}
