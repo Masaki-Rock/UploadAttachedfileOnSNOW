@@ -1,0 +1,2 @@
+# UploadAttachedfileOnSNOW
+ServiceNowのインシデントに添付ファイルをアップロードするMuleアプリケーション
