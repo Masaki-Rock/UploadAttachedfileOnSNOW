@@ -46,6 +46,7 @@ message.payload.parts.application.content]" doc:name="SetApplication" doc:id="01
 	</sub-flow>
 	<sub-flow name="UdateApplicationFlow" doc:id="4bcaafed-9f58-495b-b96e-499947c15ae1" >
 		<servicenow:invoke doc:name="GetApplication" doc:id="448150fe-5908-4a1e-9f0f-42e86937d661" config-ref="ServiceNow_Config" service="incident" operation="get" showReferenceValues="ALL" target="selectdata" targetValue="#[payload.body.getResponse]">
+			<reconnect frequency="${servicenow.reconnection.frequency}" count="${servicenow.reconnection.attempt}"/>
 			<servicenow:message>
 				<servicenow:body><![CDATA[#[%dw 2.0
 output application/xml
@@ -62,6 +63,7 @@ ns ns0 http://www.service-now.com/incident
 		<choice doc:name="CheckExistApplication" doc:id="864ab158-6341-41ca-a62e-88f09483aa38" >
 			<when expression="#[vars.selectdata == null]">
 				<servicenow:invoke doc:name="InsertApplication" doc:id="ecba8ceb-686e-426d-8d6f-0b926129a911" config-ref="ServiceNow_Config" service="incident" operation="insert" showReferenceValues="ALL" targetValue="#[payload.body.insertResponse]" target="updatedata">
+					<reconnect frequency="${servicenow.reconnection.frequency}" count="${servicenow.reconnection.attempt}" />
 					<servicenow:message >
 						<servicenow:body ><![CDATA[#[%dw 2.0
 output application/xml
@@ -80,18 +82,21 @@ ns ns0 http://www.service-now.com/incident
 			</when>
 			<otherwise>
 				<servicenow:invoke doc:name="UpdateApplication" doc:id="40128a98-8dca-4764-aad0-f2d707516ad4" config-ref="ServiceNow_Config" service="incident" operation="update" showReferenceValues="ALL" targetValue="#[payload.body.updateResponse]" target="updatedata">
+					<reconnect frequency="${servicenow.reconnection.frequency}" count="${servicenow.reconnection.attempt}" />
 					<servicenow:message >
 						<servicenow:body ><![CDATA[#[%dw 2.0
 output application/xml
 ns ns0 http://www.service-now.com/incident
 ---
+{
 	ns0#update: {
 		ns0#sys_id: vars.sysId,
 		ns0#short_description: vars.application.subject,
 		ns0#caller_id: vars.application.callerId,
 		ns0#state: vars.application.status,
 		ns0#description: vars.application.description
-	}]]]></servicenow:body>
+	}
+}]]]></servicenow:body>
 					</servicenow:message>
 				</servicenow:invoke>
 			</otherwise>
@@ -112,6 +117,7 @@ vars.updatedata.sys_id]]></ee:set-payload>
 	</sub-flow>
 	<sub-flow name="DeleteAttachedFilesFlow" doc:id="4b049013-7a92-45da-b89f-ad1d5eab977f" >
 		<servicenow:invoke doc:name="FindAttachedFiles" doc:id="a5061803-386e-4a2d-924a-2e3aae52da54" config-ref="ServiceNow_Config" service="sys_attachment" operation="getRecords" showReferenceValues="ALL" target="selectdata" targetValue="#[payload.body.getRecordsResponse]">
+			<reconnect frequency="${servicenow.reconnection.frequency}" count="${servicenow.reconnection.attempt}" />
 			<servicenow:message>
 				<servicenow:body><![CDATA[#[%dw 2.0
 output application/xml
@@ -131,6 +137,7 @@ vars.selectdata]" category="Delete File Result" />
 		<choice doc:name="CheckExistAttachedFiles" doc:id="fba1f854-a08c-4517-9471-bb7ffcceab59">
 			<when expression="#[vars.selectdata != null]">
 				<servicenow:invoke doc:name="DeleteAttachedFiles" doc:id="4412f043-d2d7-4930-b69f-8e201f284c23" config-ref="ServiceNow_Config" service="sys_attachment" operation="deleteMultiple" showReferenceValues="ALL" target="updatedata" targetValue="#[payload.body.deleteMultipleResponse]">
+					<reconnect frequency="${servicenow.reconnection.frequency}" count="${servicenow.reconnection.attempt}" />
 					<servicenow:message>
 						<servicenow:body><![CDATA[#[%dw 2.0
 output application/xml
