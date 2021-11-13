@@ -14,7 +14,7 @@ http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/ba
 http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd">
 	<validation:config name="Validation_Config" doc:name="Validation Config" doc:id="1d8ee47b-4548-48d3-92bd-347e5b6fbde7" />
 	<flow name="UpdateApplicationMainFlow" doc:id="b9ea14e1-c650-4ce0-af65-43e81200cc80" >
-		<logger level="INFO" doc:name="StartLogger" doc:id="61ce6c96-b96c-448b-8ee4-f30e384cebef" message='"The Main Flow process finished!!"' category="MainFlow Start"/>
+		<logger level="INFO" doc:name="StartLogger" doc:id="61ce6c96-b96c-448b-8ee4-f30e384cebef" message='"The Main Flow process Start!!"' category="MainFlow Start"/>
 		<flow-ref doc:name="SetValiable" doc:id="5e4565de-314d-484b-8454-d8919c11adbe" name="SetValiableFlow"/>
 		<flow-ref doc:name="UpdateApplication" doc:id="ee9443da-e948-4928-ac76-9c9b3f33d26a" name="UdateApplicationFlow" target="sysId"/>
 		<flow-ref doc:name="DeleteAttachedFiles" doc:id="ab063199-a619-4c66-b922-8627708e6dc9" name="DeleteAttachedFilesFlow"/>
